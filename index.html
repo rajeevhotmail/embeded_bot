@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Q&A Bot</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #response { margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Code Q&A Bot</h1>
+    <input type="text" id="question" placeholder="Ask a question about the code">
+    <button id="ask-btn" onclick="askQuestion()">Ask</button>  <!-- ✅ Added id="ask-btn" -->
+    <p id="response"></p>
+<button id="correct" onclick="sendFeedback('correct')">✅ Correct</button>
+<button id="incorrect" onclick="sendFeedback('incorrect')">❌ Incorrect</button>
+
+<script>
+function sendFeedback(feedback) {
+    let question = document.getElementById("question").value;
+
+    fetch("http://184.105.3.204:5000/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question, feedback: feedback })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("✅ Feedback sent:", feedback);
+    })
+    .catch(error => console.error("❌ Error:", error));
+}
+</script>
+
+    <script>
+        function askQuestion() {
+        let question = document.getElementById("question").value;
+        let askButton = document.getElementById("ask-btn");
+
+        if (!question.trim()) {
+            alert("Please enter a question!");
+            return;
+        }
+
+        askButton.disabled = true;  // Prevent multiple clicks
+        console.log("📡 Sending request:", question);
+
+        fetch("http://184.105.3.204:5000/ask", {  // Use Paperspace IP
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: question })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log("✅ Response received:", data);
+            document.getElementById("response").innerText = typeof data.result === "string" ? data.result : JSON.stringify(data, null, 2);
+        })
+        .catch(error => {
+            console.error("❌ Error:", error);
+            document.getElementById("response").innerText = "⚠️ Error fetching response!";
+        })
+        .finally(() => askButton.disabled = false);
+    }
+    </script>
+</body>
+</html>
