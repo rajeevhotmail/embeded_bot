@@ -16,6 +16,9 @@
             border: 1px solid #ddd;
             border-radius: 5px;
             background-color: #f9f9f9;
+            white-space: pre-wrap; /* Preserve whitespace and wrap text */
+            word-wrap: break-word; /* Break long words to wrap text */
+            overflow-wrap: break-word; /* Break long words to wrap text */
         }
     </style>
 </head>
@@ -30,16 +33,17 @@
 
     <script>
         document.getElementById('ask-form').addEventListener('submit', async function(e) {
-            e.preventDefault();  // Prevent form from submitting the traditional way
+            e.preventDefault();
             const question = document.getElementById('question').value;
             const response = await fetch('/ask', {
-                method: 'POST',  // Ensure POST method
+                method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({question})
             });
             const result = await response.json();
+            console.log(result); // Debug statement to check the response
             document.getElementById('result').style.display = 'block';
-            document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+            document.getElementById('result').innerHTML = '<pre>' + result.result + '</pre>'; // Directly show the result field
         });
     </script>
 </body>
