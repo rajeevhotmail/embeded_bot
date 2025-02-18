@@ -1,0 +1,5 @@
+Flask==2.0.2
+Flask-Cors==3.0.10
+langchain-community
+sentence-transformers==2.2.0
+faiss-cpu==1.7.2

@@ -14,25 +14,7 @@
     <input type="text" id="question" placeholder="Ask a question about the code">
     <button id="ask-btn" onclick="askQuestion()">Ask</button>  <!-- ✅ Added id="ask-btn" -->
     <p id="response"></p>
-<button id="correct" onclick="sendFeedback('correct')">✅ Correct</button>
-<button id="incorrect" onclick="sendFeedback('incorrect')">❌ Incorrect</button>
 
-<script>
-function sendFeedback(feedback) {
-    let question = document.getElementById("question").value;
-
-    fetch("http://184.105.3.204:5000/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: question, feedback: feedback })
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log("✅ Feedback sent:", feedback);
-    })
-    .catch(error => console.error("❌ Error:", error));
-}
-</script>
 
     <script>
         function askQuestion() {
@@ -47,7 +29,7 @@ function sendFeedback(feedback) {
         askButton.disabled = true;  // Prevent multiple clicks
         console.log("📡 Sending request:", question);
 
-        fetch("http://184.105.3.204:5000/ask", {  // Use Paperspace IP
+        fetch("http://54.82.26.227:5000/ask", {  // Use Paperspace IP
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ question: question })
