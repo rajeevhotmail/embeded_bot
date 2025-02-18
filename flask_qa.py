@@ -1,9 +1,7 @@
 import os
-import time
 import json
-import concurrent.futures
-from pathlib import Path
-from flask import Flask, request, jsonify
+import logging
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from langchain_community.llms import LlamaCpp
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -13,6 +11,9 @@ from langchain_community.document_loaders import TextLoader
 # Initialize Flask App
 app = Flask(__name__)
 CORS(app)  # Enable CORS
+
+# Configure Logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Model and Data Paths
 MODEL_PATH = "../llama_model/llama-2-7b.Q4_K_M.gguf"
@@ -38,52 +39,49 @@ class CodeSummarySystem:
 
     def load_or_create_index(self):
         """Load FAISS index if available, else create a new one"""
-        global EMBEDDINGS_PATH  # Ensure it's globally accessible
-        print(f"🔎 Checking if FAISS index exists at: {EMBEDDINGS_PATH}")
+        global EMBEDDINGS_PATH
+        logging.debug(f"🔎 Checking if FAISS index exists at: {EMBEDDINGS_PATH}")
 
         if os.path.exists(EMBEDDINGS_PATH):
-            print("✅ Loading FAISS index...")
+            logging.debug("✅ Loading FAISS index...")
             try:
                 self.vector_db = FAISS.load_local(EMBEDDINGS_PATH, self.embeddings, allow_dangerous_deserialization=True)
-                print("🎯 FAISS index loaded successfully!")
+                logging.debug("🎯 FAISS index loaded successfully!")
             except Exception as e:
-                print(f"⚠️ Error loading FAISS index: {e}")
-                print("🔄 Rebuilding FAISS index...")
+                logging.error(f"⚠️ Error loading FAISS index: {e}")
+                logging.debug("🔄 Rebuilding FAISS index...")
                 self.create_faiss_index()
         else:
-            print("⚠️ FAISS index missing. Rebuilding embeddings...")
+            logging.debug("⚠️ FAISS index missing. Rebuilding embeddings...")
             self.create_faiss_index()
 
-        # **DEBUG: Print if vector_db is assigned**
         if hasattr(self, "vector_db") and self.vector_db is not None:
-            print("✅ FAISS index is now assigned to self.vector_db")
+            logging.debug("✅ FAISS index is now assigned to self.vector_db")
         else:
-            print("❌ Critical Error: self.vector_db is still None!")
-            exit(1)  # Exit if FAISS failed to load
+            logging.error("❌ Critical Error: self.vector_db is still None!")
+            exit(1)
 
     def create_faiss_index(self):
         """Create and store FAISS index"""
         documents = []
         for file_path in self._get_python_files(PROJECT_PATH):
-            print(f"📂 Indexing file: {file_path}")
+            logging.debug(f"📂 Indexing file: {file_path}")
             loader = TextLoader(file_path)
             documents.extend(loader.load())
 
         if not documents:
             raise ValueError("❌ No Python files found in the project.")
 
-        # Initialize FAISS index
         self.vector_db = FAISS.from_documents(documents, self.embeddings)
         self.vector_db.save_local(EMBEDDINGS_PATH)
-        print("✅ FAISS index created!")
+        logging.debug("✅ FAISS index created!")
+
     def ask_question(self, question: str) -> dict:
         """Retrieve relevant code snippets from FAISS before invoking Llama model."""
         try:
-            # Initialize response and retrieved_content
             response = ""
             retrieved_content = []
 
-            # Break down the task into parts
             if question.lower().startswith("list all classes"):
                 class_list = self.list_classes(PROJECT_PATH)
                 response = "### List of Classes and Methods\n\n"
@@ -94,12 +92,11 @@ class CodeSummarySystem:
                         response += f"  - {method}\n"
                     response += "\n"
             else:
-                # Handle other types of questions
-                retrieved_docs = self.vector_db.similarity_search(question, k=1)  # Get top 1 match
+                retrieved_docs = self.vector_db.similarity_search(question, k=1)
                 if not retrieved_docs:
                     return {"error": "❌ No relevant code found in FAISS database."}
                 retrieved_content = [doc.page_content for doc in retrieved_docs]
-                context = "\n\n".join(retrieved_content)[:800]  # Aggressively truncate to fit within the context window
+                context = "\n\n".join(retrieved_content)[:800]
                 prompt = f"Context:\n{context}\n\nNow, {question}"
                 response = self.llm.invoke(prompt)
 
@@ -115,8 +112,8 @@ class CodeSummarySystem:
             }
 
         except Exception as e:
+            logging.error(f"❌ Error processing request: {str(e)}")
             return {"error": f"❌ Error processing request: {str(e)}"}
-
 
     def list_classes(self, project_path: str):
         """List all classes in the project."""
@@ -125,7 +122,6 @@ class CodeSummarySystem:
             loader = TextLoader(file_path)
             documents = loader.load()
             for doc in documents:
-                # Extract classes from the document
                 class_names = self._extract_classes(doc.page_content)
                 class_list.extend(class_names)
         return class_list
@@ -140,7 +136,7 @@ class CodeSummarySystem:
                 if isinstance(node, ast.ClassDef):
                     classes.append(node.name)
         except Exception as e:
-            print(f"Error parsing content: {e}")
+            logging.error(f"Error parsing content: {e}")
         return classes
 
     def list_methods(self, class_name: str, project_path: str):
@@ -166,12 +162,8 @@ class CodeSummarySystem:
                         if isinstance(subnode, ast.FunctionDef):
                             methods.append(subnode.name)
         except Exception as e:
-            print(f"Error parsing content: {e}")
+            logging.error(f"Error parsing content: {e}")
         return methods
-
-
-
-
 
     def _get_python_files(self, directory: str):
         """Retrieve all Python files"""
@@ -182,12 +174,11 @@ class CodeSummarySystem:
                     python_files.append(os.path.join(root, file))
         return python_files
 
-# Initialize System
 code_summary_system = CodeSummarySystem(MODEL_PATH)
 
 @app.route("/", methods=["GET"])
 def home():
-    return jsonify({"message": "Code Summarization API is running!"})
+    return render_template('index.html')
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -200,4 +191,5 @@ def ask():
     return jsonify(response)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, threaded=True)
+    app.run(host="0.0.0.0", port=5001, threaded=True, debug=True)
+

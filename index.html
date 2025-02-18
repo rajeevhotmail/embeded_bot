@@ -1,50 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Q&A Bot</title>
+    <title>Code Summarization</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        #response { margin-top: 20px; font-weight: bold; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
     </style>
 </head>
 <body>
-    <h1>Code Q&A Bot</h1>
-    <input type="text" id="question" placeholder="Ask a question about the code">
-    <button id="ask-btn" onclick="askQuestion()">Ask</button>  <!-- ✅ Added id="ask-btn" -->
-    <p id="response"></p>
-
+    <h1>Code Summarization</h1>
+    <form id="ask-form">
+        <label for="question">Enter your question:</label><br>
+        <input type="text" id="question" name="question" style="width: 100%; padding: 10px; margin-top: 10px;"><br>
+        <button type="submit" style="margin-top: 10px;">Submit</button>
+    </form>
+    <div id="result" class="result" style="display: none;"></div>
 
     <script>
-        function askQuestion() {
-        let question = document.getElementById("question").value;
-        let askButton = document.getElementById("ask-btn");
-
-        if (!question.trim()) {
-            alert("Please enter a question!");
-            return;
-        }
-
-        askButton.disabled = true;  // Prevent multiple clicks
-        console.log("📡 Sending request:", question);
-
-        fetch("http://54.82.26.227:5000/ask", {  // Use Paperspace IP
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question: question })
-        })
-        .then(response => response.json())
-        .then(data => {
-            console.log("✅ Response received:", data);
-            document.getElementById("response").innerText = typeof data.result === "string" ? data.result : JSON.stringify(data, null, 2);
-        })
-        .catch(error => {
-            console.error("❌ Error:", error);
-            document.getElementById("response").innerText = "⚠️ Error fetching response!";
-        })
-        .finally(() => askButton.disabled = false);
-    }
+        document.getElementById('ask-form').addEventListener('submit', async function(e) {
+            e.preventDefault();  // Prevent form from submitting the traditional way
+            const question = document.getElementById('question').value;
+            const response = await fetch('/ask', {
+                method: 'POST',  // Ensure POST method
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({question})
+            });
+            const result = await response.json();
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+        });
     </script>
 </body>
 </html>
