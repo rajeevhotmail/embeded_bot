@@ -77,31 +77,12 @@ class CodeSummarySystem:
         logging.debug("✅ FAISS index created!")
 
     def ask_question(self, question: str) -> dict:
-        """Handle user queries by leveraging LLM for descriptions and AST for technical details."""
+        """Retrieve relevant code snippets from FAISS before invoking Llama model."""
         try:
             response = ""
             retrieved_content = []
 
-            # Define keywords to identify descriptive queries
-            descriptive_keywords = ["summarize the project", "what is the project about"]
-
-            # Check if the query is a descriptive question
-            if any(keyword in question.lower() for keyword in descriptive_keywords):
-                # Use LLM to provide English description of the project
-                retrieved_docs = self.vector_db.similarity_search(question, k=1)
-                if not retrieved_docs:
-                    return {"error": "❌ No relevant code found in FAISS database."}
-                retrieved_content = [doc.page_content for doc in retrieved_docs]
-                context = "\n\n".join(retrieved_content)[:800]
-                prompt = f"Context:\n{context}\n\nPlease summarize the project in a conversational tone, explaining what the project is about, what each file does, and the main functions in each file."
-                response = self.llm.invoke(prompt)
-            elif question.lower().startswith("how many python files"):
-                # Use AST to count Python files
-                python_files = self._get_python_files(PROJECT_PATH)
-                count = len(python_files)
-                response = f"There are {count} Python files in the project."
-            elif question.lower().startswith("list all classes") or question.lower().startswith("what are the classes and functions"):
-                # Use AST to list all classes and methods
+            if question.lower().startswith("list all classes"):
                 class_list = self.list_classes(PROJECT_PATH)
                 response = "### List of Classes and Methods\n\n"
                 for class_name in class_list:
@@ -110,17 +91,7 @@ class CodeSummarySystem:
                     for method in method_list:
                         response += f"  - {method}\n"
                     response += "\n"
-            elif question.lower().startswith("what is the calling stack"):
-                # Use AST and LLM to summarize the calling stack
-                retrieved_docs = self.vector_db.similarity_search(question, k=1)
-                if not retrieved_docs:
-                    return {"error": "❌ No relevant code found in FAISS database."}
-                retrieved_content = [doc.page_content for doc in retrieved_docs]
-
-                key_steps = self.extract_key_steps(retrieved_content[0])
-                response = f"### Calling Stack in Normal Workflow\n\n{key_steps}"
             else:
-                # Fallback: Use LLM for other types of queries
                 retrieved_docs = self.vector_db.similarity_search(question, k=1)
                 if not retrieved_docs:
                     return {"error": "❌ No relevant code found in FAISS database."}
@@ -143,28 +114,6 @@ class CodeSummarySystem:
         except Exception as e:
             logging.error(f"❌ Error processing request: {str(e)}")
             return {"error": f"❌ Error processing request: {str(e)}"}
-
-    def extract_key_steps(self, content: str) -> str:
-        """Extract key steps from the retrieved content to summarize the calling stack."""
-        key_steps = []
-        lines = content.split('\n')
-        for line in lines:
-            if "import" in line or "def " in line or "class " in line:
-                key_steps.append(line.strip())
-        return "\n".join(key_steps)
-
-
-
-    def extract_key_steps(self, content: str) -> str:
-        """Extract key steps from the retrieved content to summarize the calling stack."""
-        key_steps = []
-        lines = content.split('\n')
-        for line in lines:
-            if "import" in line or "def " in line or "class " in line:
-                key_steps.append(line.strip())
-        return "\n".join(key_steps)
-
-
 
     def list_classes(self, project_path: str):
         """List all classes in the project."""
@@ -233,19 +182,13 @@ def home():
 
 @app.route("/ask", methods=["POST"])
 def ask():
-    try:
-        data = request.json
-        question = data.get("question", "")
-        if not question:
-            return jsonify({"error": "No question provided"}), 400
+    data = request.json
+    question = data.get("question", "")
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
 
-        response = code_summary_system.ask_question(question)
-        return jsonify(response)
-    except Exception as e:
-        logging.error(f"❌ Error processing request: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
-
+    response = code_summary_system.ask_question(question)
+    return jsonify(response)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, threaded=True, debug=True)
-

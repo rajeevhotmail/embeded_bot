@@ -6,8 +6,6 @@ import concurrent.futures
 from pathlib import Path
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from langchain_community.llms import LlamaCpp
-from langchain_community.document_loaders import TextLoader
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Initialize Flask App
@@ -15,7 +13,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS
 
 # Model and Data Paths
-MODEL_PATH = "./starcoder_model"
+MODEL_PATH = "bigcode/starcoder"  # Use the Hugging Face model path
 PROJECT_PATH = "repo"
 
 class CodeSummarySystem:
@@ -24,15 +22,17 @@ class CodeSummarySystem:
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.model = AutoModelForCausalLM.from_pretrained(model_path)
 
-
     def ask_question(self, question: str) -> dict:
         """Generate a summary based on function definitions in the project"""
         try:
-            response = self.llm.invoke(f"Summarize the function definitions: {question}")
+            print("🔍 Tokenizing the question...")  # Debugging print
+            inputs = self.tokenizer(question, return_tensors="pt")
+            print("🧠 Generating the response...")  # Debugging print
+            outputs = self.model.generate(**inputs)
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             return {"query": question, "result": response}
         except Exception as e:
             return {"error": f"❌ Error processing request: {str(e)}"}
-
 
     def summarize_code(self, project_path: str):
         """Summarize and analyze all Python files in the repo."""
@@ -48,16 +48,16 @@ class CodeSummarySystem:
         with open(file_path, "r", encoding="utf-8") as f:
             code_content = f.read()
 
-        # **Limit Code Length to 4000 Characters (~1000 Tokens)**
+        # Limit Code Length to 4000 Characters (~1000 Tokens)
         truncated_code = " ".join(code_content.split()[:1000])
 
         # Construct the Prompt
         prompt = f"Analyze the following Python code:\n{truncated_code}\n\nSummarize the purpose, functions, and logic."
 
-        # **Run Model Inference with Timeout**
+        # Run Model Inference with Timeout
         start_time = time.time()
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(self.llm.invoke, prompt)
+            future = executor.submit(self.ask_question, prompt)
             try:
                 response = future.result(timeout=15)  # Timeout in 15 seconds
             except concurrent.futures.TimeoutError:
@@ -65,7 +65,7 @@ class CodeSummarySystem:
 
         return {
             "file": file_path,
-            "summary": response,
+            "summary": response["result"] if "result" in response else response.get("error"),
             "time_taken": f"{time.time() - start_time:.2f} seconds"
         }
 
